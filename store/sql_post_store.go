@@ -30,7 +30,13 @@ func NewSqlPostStore(sqlStore *SqlStore) PostStore {
 		table.ColMap("Message").SetMaxSize(4000)
 		table.ColMap("Type").SetMaxSize(26)
 		table.ColMap("Hashtags").SetMaxSize(1000)
-		table.ColMap("Props").SetMaxSize(8000)
+
+		if utils.Cfg.SqlSettings.DriverName == model.DATABASE_DRIVER_MSSQLSERVER {
+			table.ColMap("Props").SetMaxSize(4000)
+		} else {
+			table.ColMap("Props").SetMaxSize(8000)
+		}
+
 		table.ColMap("Filenames").SetMaxSize(4000)
 	}
 
@@ -199,8 +205,13 @@ func (s SqlPostStore) GetEtag(channelId string) StoreChannel {
 	go func() {
 		result := StoreResult{}
 
+		limitQry := " LIMIT 1"
+		if utils.Cfg.SqlSettings.DriverName == model.DATABASE_DRIVER_MSSQLSERVER {
+			limitQry = " OFFSET 0 ROWS FETCH NEXT 1 ROWS ONLY"
+		}
+
 		var et etagPosts
-		err := s.GetReplica().SelectOne(&et, "SELECT Id, UpdateAt FROM Posts WHERE ChannelId = :ChannelId ORDER BY UpdateAt DESC LIMIT 1", map[string]interface{}{"ChannelId": channelId})
+		err := s.GetReplica().SelectOne(&et, "SELECT Id, UpdateAt FROM Posts WHERE ChannelId = :ChannelId ORDER BY UpdateAt DESC "+limitQry, map[string]interface{}{"ChannelId": channelId})
 		if err != nil {
 			result.Data = fmt.Sprintf("%v.0.%v", model.CurrentVersion, model.GetMillis())
 		} else {
@@ -289,7 +300,13 @@ func (s SqlPostStore) PermanentDeleteByUser(userId string) StoreChannel {
 
 		for found {
 			var ids []string
-			_, err := s.GetMaster().Select(&ids, "SELECT Id FROM Posts WHERE UserId = :UserId LIMIT 1000", map[string]interface{}{"UserId": userId})
+
+			limitQry := " LIMIT 1000"
+			if utils.Cfg.SqlSettings.DriverName == model.DATABASE_DRIVER_MSSQLSERVER {
+				limitQry = " ORDER BY Id OFFSET 0 ROWS FETCH NEXT 1000 ROWS ONLY"
+			}
+
+			_, err := s.GetMaster().Select(&ids, "SELECT Id FROM Posts WHERE UserId = :UserId "+limitQry, map[string]interface{}{"UserId": userId})
 			if err != nil {
 				result.Err = model.NewLocAppError("SqlPostStore.PermanentDeleteByUser.select", "store.sql_post.permanent_delete_by_user.app_error", nil, "userId="+userId+", err="+err.Error())
 				storeChannel <- result
@@ -378,9 +395,7 @@ func (s SqlPostStore) GetPostsSince(channelId string, time int64) StoreChannel {
 	go func() {
 		result := StoreResult{}
 
-		var posts []*model.Post
-		_, err := s.GetReplica().Select(&posts,
-			`(SELECT
+		query := `(SELECT
 			    *
 			FROM
 			    Posts
@@ -404,7 +419,47 @@ func (s SqlPostStore) GetPostsSince(channelId string, time int64) StoreChannel {
 			        UpdateAt > :Time
 			            AND ChannelId = :ChannelId
 			    LIMIT 1000) temp_tab))
-			ORDER BY CreateAt DESC`,
+			ORDER BY CreateAt DESC`
+
+		if utils.Cfg.SqlSettings.DriverName == model.DATABASE_DRIVER_MSSQLSERVER {
+			query = ` WITH Set1 AS 
+			(
+				SELECT
+				    *
+				FROM
+				    Posts
+				WHERE
+				    (UpdateAt > :Time
+				        AND ChannelId = :ChannelId)
+				ORDER BY CreateAt DESC OFFSET 0 ROWS FETCH NEXT 1000 ROWS ONLY
+			),
+			Set2 AS 
+				(
+				SELECT
+				    *
+				FROM
+				    Posts
+				WHERE
+				    Id
+				IN
+				    (SELECT * FROM (SELECT
+				        RootId
+				    FROM
+				        Posts
+				    WHERE
+				        UpdateAt > :Time
+				            AND ChannelId = :ChannelId
+				    ORDER BY CreateAt DESC OFFSET 0 ROWS FETCH NEXT 1000 ROWS ONLY) temp_tab)
+			)
+			(SELECT * FROM Set1
+			UNION
+			SELECT * FROM Set2)
+			ORDER BY CreateAt DESC`
+		}
+
+		var posts []*model.Post
+		_, err := s.GetReplica().Select(&posts,
+			query,
 			map[string]interface{}{"ChannelId": channelId, "Time": time})
 
 		if err != nil {
@@ -454,10 +509,15 @@ func (s SqlPostStore) getPostsAround(channelId string, postId string, numPosts i
 			sort = "ASC"
 		}
 
+		limitQry := " LIMIT :NumPosts OFFSET :Offset "
+		if utils.Cfg.SqlSettings.DriverName == model.DATABASE_DRIVER_MSSQLSERVER {
+			limitQry = " OFFSET :Offset ROWS FETCH NEXT :NumPosts ROWS ONLY "
+		}
+
 		var posts []*model.Post
 		var parents []*model.Post
 		_, err1 := s.GetReplica().Select(&posts,
-			`(SELECT
+			`SELECT
 			    *
 			FROM
 			    Posts
@@ -466,8 +526,7 @@ func (s SqlPostStore) getPostsAround(channelId string, postId string, numPosts i
 			        AND ChannelId = :ChannelId
 					AND DeleteAt = 0)
 			ORDER BY CreateAt `+sort+`
-			LIMIT :NumPosts
-			OFFSET :Offset)`,
+			`+limitQry,
 			map[string]interface{}{"ChannelId": channelId, "PostId": postId, "NumPosts": numPosts, "Offset": offset})
 		_, err2 := s.GetReplica().Select(&parents,
 			`(SELECT
@@ -486,8 +545,7 @@ func (s SqlPostStore) getPostsAround(channelId string, postId string, numPosts i
 						AND ChannelId = :ChannelId
 						AND DeleteAt = 0)
 					ORDER BY CreateAt `+sort+`
-					LIMIT :NumPosts
-					OFFSET :Offset)
+					`+limitQry+`)
 			    temp_tab))
 			ORDER BY CreateAt DESC`,
 			map[string]interface{}{"ChannelId": channelId, "PostId": postId, "NumPosts": numPosts, "Offset": offset})
@@ -534,8 +592,13 @@ func (s SqlPostStore) getRootPosts(channelId string, offset int, limit int) Stor
 	go func() {
 		result := StoreResult{}
 
+		limitQry := " LIMIT :Limit OFFSET :Offset "
+		if utils.Cfg.SqlSettings.DriverName == model.DATABASE_DRIVER_MSSQLSERVER {
+			limitQry = " OFFSET :Offset ROWS FETCH NEXT :Limit ROWS ONLY "
+		}
+
 		var posts []*model.Post
-		_, err := s.GetReplica().Select(&posts, "SELECT * FROM Posts WHERE ChannelId = :ChannelId AND DeleteAt = 0 ORDER BY CreateAt DESC LIMIT :Limit OFFSET :Offset", map[string]interface{}{"ChannelId": channelId, "Offset": offset, "Limit": limit})
+		_, err := s.GetReplica().Select(&posts, "SELECT * FROM Posts WHERE ChannelId = :ChannelId AND DeleteAt = 0 ORDER BY CreateAt DESC "+limitQry, map[string]interface{}{"ChannelId": channelId, "Offset": offset, "Limit": limit})
 		if err != nil {
 			result.Err = model.NewLocAppError("SqlPostStore.GetLinearPosts", "store.sql_post.get_root_posts.app_error", nil, "channelId="+channelId+err.Error())
 		} else {
@@ -555,6 +618,11 @@ func (s SqlPostStore) getParentsPosts(channelId string, offset int, limit int) S
 	go func() {
 		result := StoreResult{}
 
+		limitQry := " LIMIT :Limit OFFSET :Offset "
+		if utils.Cfg.SqlSettings.DriverName == model.DATABASE_DRIVER_MSSQLSERVER {
+			limitQry = " OFFSET :Offset ROWS FETCH NEXT :Limit ROWS ONLY "
+		}
+
 		var posts []*model.Post
 		_, err := s.GetReplica().Select(&posts,
 			`SELECT
@@ -573,7 +641,7 @@ func (s SqlPostStore) getParentsPosts(channelId string, offset int, limit int) S
 			        ChannelId = :ChannelId1
 			            AND DeleteAt = 0
 			    ORDER BY CreateAt DESC
-			    LIMIT :Limit OFFSET :Offset) q3
+			    `+limitQry+`) q3
 			    WHERE q3.RootId != '') q1
 			    ON q1.RootId = q2.Id OR q1.RootId = q2.RootId
 			WHERE
@@ -847,6 +915,30 @@ func (s SqlPostStore) AnalyticsUserCountsWithPostsByDay(teamId string) StoreChan
 				LIMIT 30`
 		}
 
+		if utils.Cfg.SqlSettings.DriverName == model.DATABASE_DRIVER_MSSQLSERVER {
+			query =
+				`SELECT
+				    CONVERT(VARCHAR(10), t1.Name, 120) AS Name, COUNT(t1.UserId) AS Value
+				FROM
+				    (SELECT DISTINCT
+				        dateadd(s, Posts.CreateAt / 1000, '1970-1-1') AS Name,
+				            Posts.UserId
+				    FROM
+				        Posts, Channels
+				    WHERE
+				        Posts.ChannelId = Channels.Id`
+
+			if len(teamId) > 0 {
+				query += " AND Channels.TeamId = :TeamId"
+			}
+
+			query += ` AND Posts.CreateAt <= :EndTime
+				    ORDER BY Name DESC OFFSET 0 ROWS FETCH NEXT 30 ROWS ONLY) AS t1
+				GROUP BY Name
+				ORDER BY Name DESC
+				OFFSET 0 ROWS FETCH NEXT 30 ROWS ONLY`
+		}
+
 		end := utils.MillisFromTime(utils.EndOfDay(utils.Yesterday()))
 
 		var rows model.AnalyticsRows
@@ -917,6 +1009,30 @@ func (s SqlPostStore) AnalyticsPostCountsByDay(teamId string) StoreChannel {
 				GROUP BY Name
 				ORDER BY Name DESC
 				LIMIT 30`
+		}
+
+		if utils.Cfg.SqlSettings.DriverName == model.DATABASE_DRIVER_MSSQLSERVER {
+			query =
+				`SELECT 
+				    Name, COUNT(Value) AS Value
+				FROM
+				    (SELECT 
+				        CONVERT(VARCHAR(10), dateadd(s, Posts.CreateAt / 1000, '1970-1-1'), 120) AS Name,
+				            '1' AS Value
+				    FROM
+				        Posts, Channels
+				    WHERE
+				        Posts.ChannelId = Channels.Id`
+
+			if len(teamId) > 0 {
+				query += " AND Channels.TeamId = :TeamId"
+			}
+
+			query += ` AND Posts.CreateAt <= :EndTime
+				            AND Posts.CreateAt >= :StartTime) AS t1
+				GROUP BY Name
+				ORDER BY Name DESC
+				OFFSET 0 ROWS FETCH NEXT 30 ROWS ONLY`
 		}
 
 		end := utils.MillisFromTime(utils.EndOfDay(utils.Yesterday()))

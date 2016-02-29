@@ -23,6 +23,7 @@ import (
 	"strings"
 	"time"
 
+	_ "github.com/denisenkom/go-mssqldb"
 	"github.com/go-gorp/gorp"
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
@@ -180,6 +181,8 @@ func setupConnection(con_type string, driver string, dataSource string, maxIdle 
 		dbmap = &gorp.DbMap{Db: db, TypeConverter: mattermConverter{}, Dialect: gorp.MySQLDialect{Engine: "InnoDB", Encoding: "UTF8MB4"}}
 	} else if driver == model.DATABASE_DRIVER_POSTGRES {
 		dbmap = &gorp.DbMap{Db: db, TypeConverter: mattermConverter{}, Dialect: gorp.PostgresDialect{}}
+	} else if driver == model.DATABASE_DRIVER_MSSQLSERVER {
+		dbmap = &gorp.DbMap{Db: db, TypeConverter: mattermConverter{}, Dialect: gorp.SqlServerDialect{}}
 	} else {
 		l4g.Critical(utils.T("store.sql.dialect_driver.critical"))
 		time.Sleep(time.Second)
@@ -301,6 +304,9 @@ func (ss SqlStore) DoesColumnExist(tableName string, columnName string) bool {
 
 		return count > 0
 
+	} else if utils.Cfg.SqlSettings.DriverName == model.DATABASE_DRIVER_MSSQLSERVER {
+		// XXX TODO FIXME
+		return false
 	} else {
 		l4g.Critical(utils.T("store.sql.column_exists_missing_driver.critical"))
 		time.Sleep(time.Second)
@@ -335,6 +341,9 @@ func (ss SqlStore) CreateColumnIfNotExists(tableName string, columnName string, 
 
 		return true
 
+	} else if utils.Cfg.SqlSettings.DriverName == model.DATABASE_DRIVER_MSSQLSERVER {
+		// XXX TODO FIXME
+		return true
 	} else {
 		l4g.Critical(utils.T("store.sql.create_column_missing_driver.critical"))
 		time.Sleep(time.Second)
@@ -368,6 +377,8 @@ func (ss SqlStore) RenameColumnIfExists(tableName string, oldColumnName string, 
 		_, err = ss.GetMaster().Exec("ALTER TABLE " + tableName + " CHANGE " + oldColumnName + " " + newColumnName + " " + colType)
 	} else if utils.Cfg.SqlSettings.DriverName == model.DATABASE_DRIVER_POSTGRES {
 		_, err = ss.GetMaster().Exec("ALTER TABLE " + tableName + " RENAME COLUMN " + oldColumnName + " TO " + newColumnName)
+	} else if utils.Cfg.SqlSettings.DriverName == model.DATABASE_DRIVER_MSSQLSERVER {
+		_, err = ss.GetMaster().Exec("ALTER TABLE " + tableName + " RENAME COLUMN " + oldColumnName + " TO " + newColumnName)
 	}
 
 	if err != nil {
@@ -390,6 +401,10 @@ func (ss SqlStore) GetMaxLengthOfColumnIfExists(tableName string, columnName str
 		result, err = ss.GetMaster().SelectStr("SELECT CHARACTER_MAXIMUM_LENGTH FROM information_schema.columns WHERE table_name = '" + tableName + "' AND COLUMN_NAME = '" + columnName + "'")
 	} else if utils.Cfg.SqlSettings.DriverName == model.DATABASE_DRIVER_POSTGRES {
 		result, err = ss.GetMaster().SelectStr("SELECT character_maximum_length FROM information_schema.columns WHERE table_name = '" + strings.ToLower(tableName) + "' AND column_name = '" + strings.ToLower(columnName) + "'")
+	} else if utils.Cfg.SqlSettings.DriverName == model.DATABASE_DRIVER_MSSQLSERVER {
+		//result, err = ss.GetMaster().SelectStr("SELECT character_maximum_length FROM information_schema.columns WHERE table_name = '" + strings.ToLower(tableName) + "' AND column_name = '" + strings.ToLower(columnName) + "'")
+		// TODO FIXME XXX
+		result = "512"
 	}
 
 	if err != nil {
@@ -411,6 +426,8 @@ func (ss SqlStore) AlterColumnTypeIfExists(tableName string, columnName string, 
 		_, err = ss.GetMaster().Exec("ALTER TABLE " + tableName + " MODIFY " + columnName + " " + mySqlColType)
 	} else if utils.Cfg.SqlSettings.DriverName == model.DATABASE_DRIVER_POSTGRES {
 		_, err = ss.GetMaster().Exec("ALTER TABLE " + strings.ToLower(tableName) + " ALTER COLUMN " + strings.ToLower(columnName) + " TYPE " + postgresColType)
+	} else if utils.Cfg.SqlSettings.DriverName == model.DATABASE_DRIVER_MSSQLSERVER {
+		// TODO FIXME XXX
 	}
 
 	if err != nil {
@@ -476,6 +493,8 @@ func (ss SqlStore) createIndexIfNotExists(indexName string, tableName string, co
 			time.Sleep(time.Second)
 			panic(fmt.Sprintf(utils.T("store.sql.create_index.critical"), err.Error()))
 		}
+	} else if utils.Cfg.SqlSettings.DriverName == model.DATABASE_DRIVER_MSSQLSERVER {
+		// XXX TODO FIXME
 	} else {
 		l4g.Critical(utils.T("store.sql.create_index_missing_driver.critical"))
 		time.Sleep(time.Second)
@@ -517,6 +536,8 @@ func (ss SqlStore) RemoveIndexIfExists(indexName string, tableName string) {
 			time.Sleep(time.Second)
 			panic(fmt.Sprintf(utils.T("store.sql.remove_index.critical"), err.Error()))
 		}
+	} else if utils.Cfg.SqlSettings.DriverName == model.DATABASE_DRIVER_MSSQLSERVER {
+		// XXX TODO FIXME
 	} else {
 		l4g.Critical(utils.T("store.sql.create_index_missing_driver.critical"))
 		time.Sleep(time.Second)

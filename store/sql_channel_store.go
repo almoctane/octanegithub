@@ -615,6 +615,12 @@ func (s SqlChannelStore) GetExtraMembers(channelId string, limit int) StoreChann
 		var err error
 
 		if limit != -1 {
+
+			limitQry := " LIMIT :Limit"
+			if utils.Cfg.SqlSettings.DriverName == model.DATABASE_DRIVER_MSSQLSERVER {
+				limitQry = " ORDER BY Id OFFSET 0 ROWS FETCH NEXT :Limit ROWS ONLY"
+			}
+
 			_, err = s.GetReplica().Select(&members, `
 			SELECT
 				Id,
@@ -629,7 +635,7 @@ func (s SqlChannelStore) GetExtraMembers(channelId string, limit int) StoreChann
 				ChannelMembers.UserId = Users.Id
 				AND Users.DeleteAt = 0
 				AND ChannelId = :ChannelId
-			LIMIT :Limit`, map[string]interface{}{"ChannelId": channelId, "Limit": limit})
+			`+limitQry, map[string]interface{}{"ChannelId": channelId, "Limit": limit})
 		} else {
 			_, err = s.GetReplica().Select(&members, `
 			SELECT

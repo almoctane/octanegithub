@@ -143,6 +143,27 @@ func (s SqlPreferenceStore) save(transaction *gorp.Transaction, preference *mode
 		} else {
 			s.insert(transaction, preference)
 		}
+	} else if utils.Cfg.SqlSettings.DriverName == model.DATABASE_DRIVER_MSSQLSERVER {
+		// mssql has no way to upsert values and trying inserting and then updating causes transactions to abort
+		count, err := transaction.SelectInt(
+			`SELECT
+				count(0)
+			FROM
+				Preferences
+			WHERE
+				UserId = :UserId
+				AND Category = :Category
+				AND Name = :Name`, params)
+		if err != nil {
+			result.Err = model.NewLocAppError("SqlPreferenceStore.save", "store.sql_preference.save.updating.app_error", nil, err.Error())
+			return result
+		}
+
+		if count == 1 {
+			s.update(transaction, preference)
+		} else {
+			s.insert(transaction, preference)
+		}
 	} else {
 		result.Err = model.NewLocAppError("SqlPreferenceStore.save", "store.sql_preference.save.missing_driver.app_error", nil,
 			"Failed to update preference because of missing driver")

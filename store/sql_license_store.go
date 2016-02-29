@@ -5,6 +5,7 @@ package store
 
 import (
 	"github.com/mattermost/platform/model"
+	"github.com/mattermost/platform/utils"
 )
 
 type SqlLicenseStore struct {
@@ -17,7 +18,11 @@ func NewSqlLicenseStore(sqlStore *SqlStore) LicenseStore {
 	for _, db := range sqlStore.GetAllConns() {
 		table := db.AddTableWithName(model.LicenseRecord{}, "Licenses").SetKeys(false, "Id")
 		table.ColMap("Id").SetMaxSize(26)
-		table.ColMap("Bytes").SetMaxSize(10000)
+		if utils.Cfg.SqlSettings.DriverName == model.DATABASE_DRIVER_MSSQLSERVER {
+			table.ColMap("Bytes").SetMaxSize(4000)
+		} else {
+			table.ColMap("Bytes").SetMaxSize(10000)
+		}
 	}
 
 	return ls

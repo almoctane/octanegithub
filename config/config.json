@@ -18,7 +18,9 @@
         "SessionLengthWebInDays": 30,
         "SessionLengthMobileInDays": 30,
         "SessionLengthSSOInDays": 30,
-        "SessionCacheInMinutes": 10
+        "SessionCacheInMinutes": 10,
+        "WebsocketSecurePort": 443,
+        "WebsocketPort": 80
     },
     "TeamSettings": {
         "SiteName": "Mattermost",
@@ -30,8 +32,8 @@
         "EnableTeamListing": false
     },
     "SqlSettings": {
-        "DriverName": "mysql",
-        "DataSource": "mmuser:mostest@tcp(dockerhost:3306)/mattermost_test?charset=utf8mb4,utf8",
+        "DriverName": "mssql",
+        "DataSource": "server=ec2-52-34-201-61.us-west-2.compute.amazonaws.com;user id=mmuser; password=mostest1;database=mattermost_test;dial timeout=60;connection timeout=120",
         "DataSourceReplicas": [],
         "MaxIdleConns": 10,
         "MaxOpenConns": 10,
@@ -112,5 +114,28 @@
         "AuthEndpoint": "",
         "TokenEndpoint": "",
         "UserApiEndpoint": ""
+    },
+    "GoogleSettings": {
+        "Enable": false,
+        "Secret": "",
+        "Id": "",
+        "Scope": "",
+        "AuthEndpoint": "",
+        "TokenEndpoint": "",
+        "UserApiEndpoint": ""
+    },
+    "LdapSettings": {
+        "Enable": false,
+        "LdapServer": null,
+        "LdapPort": 389,
+        "BaseDN": null,
+        "BindUsername": null,
+        "BindPassword": null,
+        "FirstNameAttribute": null,
+        "LastNameAttribute": null,
+        "EmailAttribute": null,
+        "UsernameAttribute": null,
+        "IdAttribute": null,
+        "QueryTimeout": 60
     }
 }

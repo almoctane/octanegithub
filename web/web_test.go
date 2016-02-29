@@ -21,8 +21,8 @@ var URL string
 
 func Setup() {
 	if api.Srv == nil {
-		utils.LoadConfig("config.json")
 		utils.InitTranslations()
+		utils.LoadConfig("config.json")
 		api.NewServer()
 		api.StartServer()
 		api.InitApi()

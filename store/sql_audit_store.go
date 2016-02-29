@@ -5,6 +5,7 @@ package store
 
 import (
 	"github.com/mattermost/platform/model"
+	"github.com/mattermost/platform/utils"
 )
 
 type SqlAuditStore struct {
@@ -78,7 +79,11 @@ func (s SqlAuditStore) Get(user_id string, limit int) StoreChannel {
 			query += " WHERE UserId = :user_id"
 		}
 
-		query += " ORDER BY CreateAt DESC LIMIT :limit"
+		if utils.Cfg.SqlSettings.DriverName == model.DATABASE_DRIVER_MSSQLSERVER {
+			query += " ORDER BY CreateAt DESC OFFSET 0 ROWS FETCH NEXT :limit ROWS ONLY"
+		} else {
+			query += " ORDER BY CreateAt DESC LIMIT :limit"
+		}
 
 		var audits model.Audits
 		if _, err := s.GetReplica().Select(&audits, query, map[string]interface{}{"user_id": user_id, "limit": limit}); err != nil {

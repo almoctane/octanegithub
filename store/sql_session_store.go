@@ -85,7 +85,12 @@ func (me SqlSessionStore) Get(sessionIdOrToken string) StoreChannel {
 
 		var sessions []*model.Session
 
-		if _, err := me.GetReplica().Select(&sessions, "SELECT * FROM Sessions WHERE Token = :Token OR Id = :Id LIMIT 1", map[string]interface{}{"Token": sessionIdOrToken, "Id": sessionIdOrToken}); err != nil {
+		limitQry := " LIMIT 1"
+		if utils.Cfg.SqlSettings.DriverName == model.DATABASE_DRIVER_MSSQLSERVER {
+			limitQry = " ORDER BY Id OFFSET 0 ROWS FETCH NEXT 1 ROWS ONLY"
+		}
+
+		if _, err := me.GetReplica().Select(&sessions, "SELECT * FROM Sessions WHERE Token = :Token OR Id = :Id "+limitQry, map[string]interface{}{"Token": sessionIdOrToken, "Id": sessionIdOrToken}); err != nil {
 			result.Err = model.NewLocAppError("SqlSessionStore.Get", "store.sql_session.get.app_error", nil, "sessionIdOrToken="+sessionIdOrToken+", "+err.Error())
 		} else if sessions == nil || len(sessions) == 0 {
 			result.Err = model.NewLocAppError("SqlSessionStore.Get", "store.sql_session.get.app_error", nil, "sessionIdOrToken="+sessionIdOrToken)

@@ -16,8 +16,9 @@ const (
 	IMAGE_DRIVER_LOCAL = "local"
 	IMAGE_DRIVER_S3    = "amazons3"
 
-	DATABASE_DRIVER_MYSQL    = "mysql"
-	DATABASE_DRIVER_POSTGRES = "postgres"
+	DATABASE_DRIVER_MYSQL       = "mysql"
+	DATABASE_DRIVER_POSTGRES    = "postgres"
+	DATABASE_DRIVER_MSSQLSERVER = "mssql"
 
 	SERVICE_GITLAB = "gitlab"
 	SERVICE_GOOGLE = "google"
@@ -397,7 +398,9 @@ func (o *Config) IsValid() *AppError {
 		return NewLocAppError("Config.IsValid", "model.config.is_valid.encrypt_sql.app_error", nil, "")
 	}
 
-	if !(o.SqlSettings.DriverName == DATABASE_DRIVER_MYSQL || o.SqlSettings.DriverName == DATABASE_DRIVER_POSTGRES) {
+	if !(o.SqlSettings.DriverName == DATABASE_DRIVER_MYSQL ||
+		o.SqlSettings.DriverName == DATABASE_DRIVER_POSTGRES ||
+		o.SqlSettings.DriverName == DATABASE_DRIVER_MSSQLSERVER) {
 		return NewLocAppError("Config.IsValid", "model.config.is_valid.sql_driver.app_error", nil, "")
 	}
 
