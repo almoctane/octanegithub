@@ -34,7 +34,7 @@ func (me SqlSessionStore) UpgradeSchemaIfNeeded() {
 	// ADDED for 2.1 REMOVE for 2.5
 	deviceIdLength := me.GetMaxLengthOfColumnIfExists("Sessions", "DeviceId")
 	if len(deviceIdLength) > 0 && deviceIdLength != "512" {
-		me.AlterColumnTypeIfExists("Sessions", "DeviceId", "VARCHAR(512)", "VARCHAR(512)")
+		me.AlterColumnTypeIfExists("Sessions", "DeviceId", "VARCHAR(512)", "VARCHAR(512)", "NVARCHAR(512)")
 	}
 }
 

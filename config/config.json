@@ -32,8 +32,8 @@
         "EnableTeamListing": false
     },
     "SqlSettings": {
-        "DriverName": "mssql",
-        "DataSource": "server=ec2-52-34-201-61.us-west-2.compute.amazonaws.com;user id=mmuser; password=mostest1;database=mattermost_test;dial timeout=60;connection timeout=120",
+        "DriverName": "mysql",
+        "DataSource": "mmuser:mostest@tcp(dockerhost:3306)/mattermost_test?charset=utf8mb4,utf8",
         "DataSourceReplicas": [],
         "MaxIdleConns": 10,
         "MaxOpenConns": 10,

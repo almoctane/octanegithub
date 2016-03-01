@@ -40,7 +40,7 @@ func TestChannelStoreSave(t *testing.T) {
 		t.Fatal("Should not be able to save direct channel")
 	}
 
-	// TODO XXX FIXME
+	// XXX TODO FIXME
 	// o1.Type = model.CHANNEL_OPEN
 	// for i := 0; i < 1000; i++ {
 	// 	o1.Id = ""

@@ -60,7 +60,7 @@ func (s SqlTeamStore) Save(team *model.Team) StoreChannel {
 		}
 
 		if err := s.GetMaster().Insert(team); err != nil {
-			if IsUniqueConstraintError(err.Error(), "Name", "teams_name_key") {
+			if IsUniqueConstraintError(err.Error(), "Name", "teams_name_key", "UQ__Teams__") {
 				result.Err = model.NewLocAppError("SqlTeamStore.Save", "store.sql_team.save.domain_exists.app_error", nil, "id="+team.Id+", "+err.Error())
 			} else {
 				result.Err = model.NewLocAppError("SqlTeamStore.Save", "store.sql_team.save.app_error", nil, "id="+team.Id+", "+err.Error())

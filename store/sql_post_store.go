@@ -708,6 +708,11 @@ func (s SqlPostStore) Search(teamId string, userId string, params *model.SearchP
 
 		var posts []*model.Post
 
+		limitQry := " LIMIT 100"
+		if utils.Cfg.SqlSettings.DriverName == model.DATABASE_DRIVER_MSSQLSERVER {
+			limitQry = " OFFSET 0 ROWS FETCH NEXT 100 ROWS ONLY"
+		}
+
 		searchQuery := `
 			SELECT
 				*
@@ -731,7 +736,7 @@ func (s SqlPostStore) Search(teamId string, userId string, params *model.SearchP
 							CHANNEL_FILTER)
 				SEARCH_CLAUSE
 				ORDER BY CreateAt DESC
-			LIMIT 100`
+			` + limitQry
 
 		if len(params.InChannels) > 1 {
 			inClause := ":InChannel0"
@@ -800,6 +805,9 @@ func (s SqlPostStore) Search(teamId string, userId string, params *model.SearchP
 			searchQuery = strings.Replace(searchQuery, "SEARCH_CLAUSE", searchClause, 1)
 		} else if utils.Cfg.SqlSettings.DriverName == model.DATABASE_DRIVER_MYSQL {
 			searchClause := fmt.Sprintf("AND MATCH (%s) AGAINST (:Terms IN BOOLEAN MODE)", searchType)
+			searchQuery = strings.Replace(searchQuery, "SEARCH_CLAUSE", searchClause, 1)
+		} else if utils.Cfg.SqlSettings.DriverName == model.DATABASE_DRIVER_MSSQLSERVER {
+			searchClause := fmt.Sprintf("AND FREETEXT (%s, :Terms)", searchType)
 			searchQuery = strings.Replace(searchQuery, "SEARCH_CLAUSE", searchClause, 1)
 		}
 

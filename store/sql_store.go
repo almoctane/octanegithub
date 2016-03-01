@@ -249,6 +249,27 @@ func (ss SqlStore) DoesTableExist(tableName string) bool {
 
 		return count > 0
 
+	} else if utils.Cfg.SqlSettings.DriverName == model.DATABASE_DRIVER_MSSQLSERVER {
+
+		count, err := ss.GetMaster().SelectInt(
+			`SELECT
+		    COUNT(0) AS table_exists
+			FROM
+			    information_schema.TABLES
+			WHERE
+			    TABLE_NAME = ?
+		    `,
+			tableName,
+		)
+
+		if err != nil {
+			l4g.Critical(utils.T("store.sql.table_exists.critical"), err)
+			time.Sleep(time.Second)
+			panic(fmt.Sprintf(utils.T("store.sql.table_exists.critical"), err.Error()))
+		}
+
+		return count > 0
+
 	} else {
 		l4g.Critical(utils.T("store.sql.column_exists_missing_driver.critical"))
 		time.Sleep(time.Second)
@@ -282,7 +303,6 @@ func (ss SqlStore) DoesColumnExist(tableName string, columnName string) bool {
 		return count > 0
 
 	} else if utils.Cfg.SqlSettings.DriverName == model.DATABASE_DRIVER_MYSQL {
-
 		count, err := ss.GetMaster().SelectInt(
 			`SELECT
 		    COUNT(0) AS column_exists
@@ -305,8 +325,25 @@ func (ss SqlStore) DoesColumnExist(tableName string, columnName string) bool {
 		return count > 0
 
 	} else if utils.Cfg.SqlSettings.DriverName == model.DATABASE_DRIVER_MSSQLSERVER {
-		// XXX TODO FIXME
-		return false
+		count, err := ss.GetMaster().SelectInt(
+			`SELECT
+		    COUNT(0) AS column_exists
+		FROM
+		    information_schema.COLUMNS
+		WHERE
+		    TABLE_NAME = ?
+		    AND COLUMN_NAME = ?`,
+			tableName,
+			columnName,
+		)
+
+		if err != nil {
+			l4g.Critical(utils.T("store.sql.column_exists.critical"), err)
+			time.Sleep(time.Second)
+			panic(fmt.Sprintf(utils.T("store.sql.column_exists.critical"), err.Error()))
+		}
+
+		return count > 0
 	} else {
 		l4g.Critical(utils.T("store.sql.column_exists_missing_driver.critical"))
 		time.Sleep(time.Second)
@@ -315,7 +352,7 @@ func (ss SqlStore) DoesColumnExist(tableName string, columnName string) bool {
 
 }
 
-func (ss SqlStore) CreateColumnIfNotExists(tableName string, columnName string, mySqlColType string, postgresColType string, defaultValue string) bool {
+func (ss SqlStore) CreateColumnIfNotExists(tableName string, columnName string, mySqlColType string, postgresColType string, msSqlColType string, defaultValue string) bool {
 
 	if ss.DoesColumnExist(tableName, columnName) {
 		return false
@@ -342,7 +379,13 @@ func (ss SqlStore) CreateColumnIfNotExists(tableName string, columnName string, 
 		return true
 
 	} else if utils.Cfg.SqlSettings.DriverName == model.DATABASE_DRIVER_MSSQLSERVER {
-		// XXX TODO FIXME
+		_, err := ss.GetMaster().Exec("ALTER TABLE " + tableName + " ADD " + columnName + " " + msSqlColType + " DEFAULT '" + defaultValue + "'")
+		if err != nil {
+			l4g.Critical(utils.T("store.sql.create_column.critical"), err)
+			time.Sleep(time.Second)
+			panic(fmt.Sprintf(utils.T("store.sql.create_column.critical"), err.Error()))
+		}
+
 		return true
 	} else {
 		l4g.Critical(utils.T("store.sql.create_column_missing_driver.critical"))
@@ -355,6 +398,29 @@ func (ss SqlStore) RemoveColumnIfExists(tableName string, columnName string) boo
 
 	if !ss.DoesColumnExist(tableName, columnName) {
 		return false
+	}
+
+	if utils.Cfg.SqlSettings.DriverName == model.DATABASE_DRIVER_MSSQLSERVER {
+		query := `DECLARE @sql NVARCHAR(MAX)
+		WHILE 1=1
+		BEGIN
+		    SELECT TOP 1 @sql = N'alter table ` + tableName + ` drop constraint ['+dc.NAME+N']'
+		    from sys.default_constraints dc
+		    JOIN sys.columns c
+		        ON c.default_object_id = dc.object_id
+		    WHERE
+		        dc.parent_object_id = OBJECT_ID('` + tableName + `')
+		    AND c.name = N'` + columnName + `'
+		    IF @@ROWCOUNT = 0 BREAK
+		    EXEC (@sql)
+		END`
+
+		_, err := ss.GetMaster().Exec(query)
+		if err != nil {
+			l4g.Critical(utils.T("store.sql.drop_column.critical"), err)
+			time.Sleep(time.Second)
+			panic(fmt.Sprintf(utils.T("store.sql.drop_column.critical"), err.Error()))
+		}
 	}
 
 	_, err := ss.GetMaster().Exec("ALTER TABLE " + tableName + " DROP COLUMN " + columnName)
@@ -378,7 +444,7 @@ func (ss SqlStore) RenameColumnIfExists(tableName string, oldColumnName string, 
 	} else if utils.Cfg.SqlSettings.DriverName == model.DATABASE_DRIVER_POSTGRES {
 		_, err = ss.GetMaster().Exec("ALTER TABLE " + tableName + " RENAME COLUMN " + oldColumnName + " TO " + newColumnName)
 	} else if utils.Cfg.SqlSettings.DriverName == model.DATABASE_DRIVER_MSSQLSERVER {
-		_, err = ss.GetMaster().Exec("ALTER TABLE " + tableName + " RENAME COLUMN " + oldColumnName + " TO " + newColumnName)
+		_, err = ss.GetMaster().Exec("sp_rename '" + tableName + "." + oldColumnName + "', '" + newColumnName + "', 'COLUMN'")
 	}
 
 	if err != nil {
@@ -402,9 +468,7 @@ func (ss SqlStore) GetMaxLengthOfColumnIfExists(tableName string, columnName str
 	} else if utils.Cfg.SqlSettings.DriverName == model.DATABASE_DRIVER_POSTGRES {
 		result, err = ss.GetMaster().SelectStr("SELECT character_maximum_length FROM information_schema.columns WHERE table_name = '" + strings.ToLower(tableName) + "' AND column_name = '" + strings.ToLower(columnName) + "'")
 	} else if utils.Cfg.SqlSettings.DriverName == model.DATABASE_DRIVER_MSSQLSERVER {
-		//result, err = ss.GetMaster().SelectStr("SELECT character_maximum_length FROM information_schema.columns WHERE table_name = '" + strings.ToLower(tableName) + "' AND column_name = '" + strings.ToLower(columnName) + "'")
-		// TODO FIXME XXX
-		result = "512"
+		result, err = ss.GetMaster().SelectStr("SELECT CHARACTER_MAXIMUM_LENGTH FROM information_schema.columns WHERE table_name = '" + tableName + "' AND COLUMN_NAME = '" + columnName + "'")
 	}
 
 	if err != nil {
@@ -416,7 +480,7 @@ func (ss SqlStore) GetMaxLengthOfColumnIfExists(tableName string, columnName str
 	return result
 }
 
-func (ss SqlStore) AlterColumnTypeIfExists(tableName string, columnName string, mySqlColType string, postgresColType string) bool {
+func (ss SqlStore) AlterColumnTypeIfExists(tableName string, columnName string, mySqlColType string, postgresColType string, msSqlServerColType string) bool {
 	if !ss.DoesColumnExist(tableName, columnName) {
 		return false
 	}
@@ -427,7 +491,7 @@ func (ss SqlStore) AlterColumnTypeIfExists(tableName string, columnName string, 
 	} else if utils.Cfg.SqlSettings.DriverName == model.DATABASE_DRIVER_POSTGRES {
 		_, err = ss.GetMaster().Exec("ALTER TABLE " + strings.ToLower(tableName) + " ALTER COLUMN " + strings.ToLower(columnName) + " TYPE " + postgresColType)
 	} else if utils.Cfg.SqlSettings.DriverName == model.DATABASE_DRIVER_MSSQLSERVER {
-		// TODO FIXME XXX
+		_, err = ss.GetMaster().Exec("ALTER TABLE " + tableName + " ALTER COLUMN " + columnName + " " + msSqlServerColType)
 	}
 
 	if err != nil {
@@ -494,11 +558,96 @@ func (ss SqlStore) createIndexIfNotExists(indexName string, tableName string, co
 			panic(fmt.Sprintf(utils.T("store.sql.create_index.critical"), err.Error()))
 		}
 	} else if utils.Cfg.SqlSettings.DriverName == model.DATABASE_DRIVER_MSSQLSERVER {
-		// XXX TODO FIXME
+		if indexType == INDEX_TYPE_FULL_TEXT {
+			ctlCount, err := ss.GetMaster().SelectInt("SELECT COUNT(0) AS index_exists FROM sys.fulltext_catalogs WHERE name = 'ftCatalog'")
+			if err != nil {
+				l4g.Critical(utils.T("store.sql.create_index.critical"), err)
+				time.Sleep(time.Second)
+				panic(fmt.Sprintf(utils.T("store.sql.create_index.critical"), err.Error()))
+			}
+
+			if ctlCount == 0 {
+				_, err = ss.GetMaster().Exec("CREATE FULLTEXT CATALOG ftCatalog AS DEFAULT")
+				if err != nil {
+					l4g.Critical(utils.T("store.sql.create_index.critical"), err)
+					time.Sleep(time.Second)
+					panic(fmt.Sprintf(utils.T("store.sql.create_index.critical"), err.Error()))
+				}
+			}
+
+			indexCount, err := ss.GetMaster().SelectInt("SELECT COUNT(0) FROM sys.fulltext_indexes WHERE object_id = object_id('" + tableName + "')")
+			if err != nil {
+				l4g.Critical(utils.T("store.sql.create_index.critical"), err)
+				time.Sleep(time.Second)
+				panic(fmt.Sprintf(utils.T("store.sql.create_index.critical"), err.Error()))
+			}
+
+			if indexCount == 0 {
+				_, err = ss.GetMaster().Exec(`
+					DECLARE @cn NVARCHAR(MAX);
+					DECLARE @sql NVARCHAR(MAX);
+					SELECT @cn = CONSTRAINT_NAME FROM information_schema.TABLE_CONSTRAINTS WHERE TABLE_NAME = '` + tableName + `' AND CONSTRAINT_TYPE ='PRIMARY KEY';
+					SELECT @sql = N'CREATE FULLTEXT INDEX ON ` + tableName + ` KEY INDEX ' + @cn;
+					EXEC (@sql)
+				`)
+				if err != nil {
+					l4g.Critical(utils.T("store.sql.create_index.critical"), err)
+					time.Sleep(time.Second)
+					panic(fmt.Sprintf(utils.T("store.sql.create_index.critical"), err.Error()))
+				}
+			}
+
+			indexColCount, err := ss.GetMaster().SelectInt("SELECT COLUMNPROPERTY(OBJECT_ID('" + tableName + "'), '" + columnName + "', 'IsFulltextIndexed')")
+			if err != nil {
+				l4g.Critical(utils.T("store.sql.create_index.critical"), err)
+				time.Sleep(time.Second)
+				panic(fmt.Sprintf(utils.T("store.sql.create_index.critical"), err.Error()))
+			}
+
+			if indexColCount == 0 {
+				_, err = ss.GetMaster().Exec("ALTER FULLTEXT INDEX ON " + tableName + " ADD (" + columnName + ")")
+				if err != nil {
+					l4g.Critical(utils.T("store.sql.create_index.critical"), err)
+					time.Sleep(time.Second)
+					panic(fmt.Sprintf(utils.T("store.sql.create_index.critical"), err.Error()))
+				}
+			}
+		} else {
+			count, err := ss.GetMaster().SelectInt("SELECT COUNT(0) AS index_exists FROM sys.indexes WHERE name=? AND object_id = OBJECT_ID(?)", indexName, tableName)
+			if err != nil {
+				l4g.Critical(utils.T("store.sql.check_index.critical"), err)
+				time.Sleep(time.Second)
+				panic(fmt.Sprintf(utils.T("store.sql.check_index.critical"), err.Error()))
+			}
+
+			if count > 0 {
+				return
+			}
+
+			_, err = ss.GetMaster().Exec("CREATE INDEX " + indexName + " ON " + tableName + " (" + columnName + ")")
+			if err != nil {
+				l4g.Critical(utils.T("store.sql.create_index.critical"), err)
+				time.Sleep(time.Second)
+				panic(fmt.Sprintf(utils.T("store.sql.create_index.critical"), err.Error()))
+			}
+		}
 	} else {
 		l4g.Critical(utils.T("store.sql.create_index_missing_driver.critical"))
 		time.Sleep(time.Second)
 		panic(utils.T("store.sql.create_index_missing_driver.critical"))
+	}
+}
+
+func (ss SqlStore) RemoveFullTextIndexIfExists(indexName string, tableName string) {
+	if utils.Cfg.SqlSettings.DriverName == model.DATABASE_DRIVER_MSSQLSERVER {
+		_, err := ss.GetMaster().Exec("DROP FULLTEXT INDEX ON " + tableName)
+		if err != nil {
+			l4g.Critical(utils.T("store.sql.remove_index.critical"), err)
+			time.Sleep(time.Second)
+			panic(fmt.Sprintf(utils.T("store.sql.remove_index.critical"), err.Error()))
+		}
+	} else {
+		ss.RemoveIndexIfExists(indexName, tableName)
 	}
 }
 
@@ -526,7 +675,7 @@ func (ss SqlStore) RemoveIndexIfExists(indexName string, tableName string) {
 			panic(fmt.Sprintf(utils.T("store.sql.check_index.critical"), err.Error()))
 		}
 
-		if count > 0 {
+		if count == 0 {
 			return
 		}
 
@@ -537,7 +686,23 @@ func (ss SqlStore) RemoveIndexIfExists(indexName string, tableName string) {
 			panic(fmt.Sprintf(utils.T("store.sql.remove_index.critical"), err.Error()))
 		}
 	} else if utils.Cfg.SqlSettings.DriverName == model.DATABASE_DRIVER_MSSQLSERVER {
-		// XXX TODO FIXME
+		count, err := ss.GetMaster().SelectInt("SELECT COUNT(0) AS index_exists FROM sys.indexes WHERE name=? AND object_id = OBJECT_ID(?)", indexName, tableName)
+		if err != nil {
+			l4g.Critical(utils.T("store.sql.check_index.critical"), err)
+			time.Sleep(time.Second)
+			panic(fmt.Sprintf(utils.T("store.sql.check_index.critical"), err.Error()))
+		}
+
+		if count == 0 {
+			return
+		}
+
+		_, err = ss.GetMaster().Exec("DROP INDEX " + indexName + " ON " + tableName)
+		if err != nil {
+			l4g.Critical(utils.T("store.sql.remove_index.critical"), err)
+			time.Sleep(time.Second)
+			panic(fmt.Sprintf(utils.T("store.sql.remove_index.critical"), err.Error()))
+		}
 	} else {
 		l4g.Critical(utils.T("store.sql.create_index_missing_driver.critical"))
 		time.Sleep(time.Second)
@@ -545,9 +710,9 @@ func (ss SqlStore) RemoveIndexIfExists(indexName string, tableName string) {
 	}
 }
 
-func IsUniqueConstraintError(err string, mysql string, postgres string) bool {
-	unique := strings.Contains(err, "unique constraint") || strings.Contains(err, "Duplicate entry")
-	field := strings.Contains(err, mysql) || strings.Contains(err, postgres)
+func IsUniqueConstraintError(err string, mysql string, postgres string, mssqlserver string) bool {
+	unique := strings.Contains(err, "unique constraint") || strings.Contains(err, "Duplicate entry") || strings.Contains(err, "UNIQUE KEY constraint")
+	field := strings.Contains(err, mysql) || strings.Contains(err, postgres) || strings.Contains(err, mssqlserver)
 	return unique && field
 }
 

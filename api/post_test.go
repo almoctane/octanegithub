@@ -434,6 +434,10 @@ func TestSearchPosts(t *testing.T) {
 	post4 := &model.Post{ChannelId: channel1.Id, Message: "hashtag for post4"}
 	post4 = Client.Must(Client.CreatePost(post4)).Data.(*model.Post)
 
+	if utils.Cfg.SqlSettings.DriverName == model.DATABASE_DRIVER_MSSQLSERVER {
+		time.Sleep(12 * time.Second)
+	}
+
 	r1 := Client.Must(Client.SearchPosts("search")).Data.(*model.PostList)
 
 	if len(r1.Order) != 3 {
@@ -481,6 +485,10 @@ func TestSearchHashtagPosts(t *testing.T) {
 	post3 := &model.Post{ChannelId: channel1.Id, Message: "no hashtag"}
 	post3 = Client.Must(Client.CreatePost(post3)).Data.(*model.Post)
 
+	if utils.Cfg.SqlSettings.DriverName == model.DATABASE_DRIVER_MSSQLSERVER {
+		time.Sleep(12 * time.Second)
+	}
+
 	r1 := Client.Must(Client.SearchPosts("#sgtitlereview")).Data.(*model.PostList)
 
 	if len(r1.Order) != 2 {
@@ -520,6 +528,10 @@ func TestSearchPostsInChannel(t *testing.T) {
 
 	post4 := &model.Post{ChannelId: channel3.Id, Message: "other message with no return"}
 	post4 = Client.Must(Client.CreatePost(post4)).Data.(*model.Post)
+
+	if utils.Cfg.SqlSettings.DriverName == model.DATABASE_DRIVER_MSSQLSERVER {
+		time.Sleep(12 * time.Second)
+	}
 
 	if result := Client.Must(Client.SearchPosts("channel:")).Data.(*model.PostList); len(result.Order) != 0 {
 		t.Fatalf("wrong number of posts returned %v", len(result.Order))
@@ -602,6 +614,10 @@ func TestSearchPostsFromUser(t *testing.T) {
 	post2 := &model.Post{ChannelId: channel2.Id, Message: "sgtitlereview\n with return"}
 	post2 = Client.Must(Client.CreatePost(post2)).Data.(*model.Post)
 
+	if utils.Cfg.SqlSettings.DriverName == model.DATABASE_DRIVER_MSSQLSERVER {
+		time.Sleep(12 * time.Second)
+	}
+
 	if result := Client.Must(Client.SearchPosts("from: " + user1.Username)).Data.(*model.PostList); len(result.Order) != 1 {
 		t.Fatalf("wrong number of posts returned %v", len(result.Order))
 	}
@@ -616,6 +632,10 @@ func TestSearchPostsFromUser(t *testing.T) {
 
 	post3 := &model.Post{ChannelId: channel1.Id, Message: "hullo"}
 	post3 = Client.Must(Client.CreatePost(post3)).Data.(*model.Post)
+
+	if utils.Cfg.SqlSettings.DriverName == model.DATABASE_DRIVER_MSSQLSERVER {
+		time.Sleep(12 * time.Second)
+	}
 
 	if result := Client.Must(Client.SearchPosts("from: " + user2.Username + " in:" + channel1.Name)).Data.(*model.PostList); len(result.Order) != 1 {
 		t.Fatalf("wrong number of posts returned %v", len(result.Order))
@@ -646,6 +666,10 @@ func TestSearchPostsFromUser(t *testing.T) {
 
 	post4 := &model.Post{ChannelId: channel2.Id, Message: "coconut"}
 	post4 = Client.Must(Client.CreatePost(post4)).Data.(*model.Post)
+
+	if utils.Cfg.SqlSettings.DriverName == model.DATABASE_DRIVER_MSSQLSERVER {
+		time.Sleep(12 * time.Second)
+	}
 
 	if result := Client.Must(Client.SearchPosts("from: " + user2.Username + " from: " + user3.Username + " in:" + channel2.Name + " coconut")).Data.(*model.PostList); len(result.Order) != 1 {
 		t.Fatalf("wrong number of posts returned %v", len(result.Order))

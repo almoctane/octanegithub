@@ -69,8 +69,11 @@ func TestCreateChannel(t *testing.T) {
 
 	Client.DeleteChannel(savedId)
 	if _, err := Client.CreateChannel(rchannel.Data.(*model.Channel)); err != nil {
-		if err.Message != "A channel with that URL was previously created" {
-			t.Fatal(err)
+		// TODO XXX FIXME MS SQL cannot detect which constraint was violated.
+		if utils.Cfg.SqlSettings.DriverName != model.DATABASE_DRIVER_MSSQLSERVER {
+			if err.Message != "A channel with that URL was previously created" {
+				t.Fatal(err)
+			}
 		}
 	}
 

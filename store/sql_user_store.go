@@ -47,7 +47,7 @@ func NewSqlUserStore(sqlStore *SqlStore) UserStore {
 
 func (us SqlUserStore) UpgradeSchemaIfNeeded() {
 	// ADDED for 2.0 REMOVE for 2.4
-	us.CreateColumnIfNotExists("Users", "Locale", "varchar(5)", "character varying(5)", model.DEFAULT_LOCALE)
+	us.CreateColumnIfNotExists("Users", "Locale", "varchar(5)", "character varying(5)", "nvarchar(5)", model.DEFAULT_LOCALE)
 }
 
 func (us SqlUserStore) CreateIndexesIfNotExists() {
@@ -89,9 +89,9 @@ func (us SqlUserStore) Save(user *model.User) StoreChannel {
 		}
 
 		if err := us.GetMaster().Insert(user); err != nil {
-			if IsUniqueConstraintError(err.Error(), "Email", "users_email_teamid_key") {
+			if IsUniqueConstraintError(err.Error(), "Email", "users_email_teamid_key", "UQ__Users__") {
 				result.Err = model.NewLocAppError("SqlUserStore.Save", "store.sql_user.save.email_exists.app_error", nil, "user_id="+user.Id+", "+err.Error())
-			} else if IsUniqueConstraintError(err.Error(), "Username", "users_username_teamid_key") {
+			} else if IsUniqueConstraintError(err.Error(), "Username", "users_username_teamid_key", "UQ__Users__") {
 				result.Err = model.NewLocAppError("SqlUserStore.Save", "store.sql_user.save.username_exists.app_error", nil, "user_id="+user.Id+", "+err.Error())
 			} else {
 				result.Err = model.NewLocAppError("SqlUserStore.Save", "store.sql_user.save.app_error", nil, "user_id="+user.Id+", "+err.Error())
@@ -163,9 +163,9 @@ func (us SqlUserStore) Update(user *model.User, allowActiveUpdate bool) StoreCha
 			}
 
 			if count, err := us.GetMaster().Update(user); err != nil {
-				if IsUniqueConstraintError(err.Error(), "Email", "users_email_teamid_key") {
+				if IsUniqueConstraintError(err.Error(), "Email", "users_email_teamid_key", "UQ__Users__") {
 					result.Err = model.NewLocAppError("SqlUserStore.Update", "store.sql_user.update.email_taken.app_error", nil, "user_id="+user.Id+", "+err.Error())
-				} else if IsUniqueConstraintError(err.Error(), "Username", "users_username_teamid_key") {
+				} else if IsUniqueConstraintError(err.Error(), "Username", "users_username_teamid_key", "UQ__Users__") {
 					result.Err = model.NewLocAppError("SqlUserStore.Update", "store.sql_user.update.username_taken.app_error", nil, "user_id="+user.Id+", "+err.Error())
 				} else {
 					result.Err = model.NewLocAppError("SqlUserStore.Update", "store.sql_user.update.updating.app_error", nil, "user_id="+user.Id+", "+err.Error())
@@ -373,7 +373,12 @@ func (s SqlUserStore) GetEtagForProfiles(teamId string) StoreChannel {
 	go func() {
 		result := StoreResult{}
 
-		updateAt, err := s.GetReplica().SelectInt("SELECT UpdateAt FROM Users WHERE TeamId = :TeamId ORDER BY UpdateAt DESC LIMIT 1", map[string]interface{}{"TeamId": teamId})
+		limitQry := " LIMIT 1"
+		if utils.Cfg.SqlSettings.DriverName == model.DATABASE_DRIVER_MSSQLSERVER {
+			limitQry = " OFFSET 0 ROWS FETCH NEXT 1 ROWS ONLY"
+		}
+
+		updateAt, err := s.GetReplica().SelectInt("SELECT UpdateAt FROM Users WHERE TeamId = :TeamId ORDER BY UpdateAt DESC "+limitQry, map[string]interface{}{"TeamId": teamId})
 		if err != nil {
 			result.Data = fmt.Sprintf("%v.%v", model.CurrentVersion, model.GetMillis())
 		} else {

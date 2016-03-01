@@ -156,7 +156,7 @@ func (s SqlChannelStore) saveChannelT(transaction *gorp.Transaction, channel *mo
 	}
 
 	if err := transaction.Insert(channel); err != nil {
-		if IsUniqueConstraintError(err.Error(), "Name", "channels_name_teamid_key") {
+		if IsUniqueConstraintError(err.Error(), "Name", "channels_name_teamid_key", "UQ__Channels__") {
 			dupChannel := model.Channel{}
 			s.GetMaster().SelectOne(&dupChannel, "SELECT * FROM Channels WHERE TeamId = :TeamId AND Name = :Name AND DeleteAt > 0", map[string]interface{}{"TeamId": channel.TeamId, "Name": channel.Name})
 			if dupChannel.DeleteAt > 0 {
@@ -190,7 +190,7 @@ func (s SqlChannelStore) Update(channel *model.Channel) StoreChannel {
 		}
 
 		if count, err := s.GetMaster().Update(channel); err != nil {
-			if IsUniqueConstraintError(err.Error(), "Name", "channels_name_teamid_key") {
+			if IsUniqueConstraintError(err.Error(), "Name", "channels_name_teamid_key", "UQ__Channels__") {
 				dupChannel := model.Channel{}
 				s.GetReplica().SelectOne(&dupChannel, "SELECT * FROM Channels WHERE TeamId = :TeamId AND Name= :Name AND DeleteAt > 0", map[string]interface{}{"TeamId": channel.TeamId, "Name": channel.Name})
 				if dupChannel.DeleteAt > 0 {
@@ -494,7 +494,7 @@ func (s SqlChannelStore) saveMemberT(transaction *gorp.Transaction, member *mode
 	}
 
 	if err := transaction.Insert(member); err != nil {
-		if IsUniqueConstraintError(err.Error(), "ChannelId", "channelmembers_pkey") {
+		if IsUniqueConstraintError(err.Error(), "ChannelId", "channelmembers_pkey", "UQ__ChannelMembers__") {
 			result.Err = model.NewLocAppError("SqlChannelStore.SaveMember", "store.sql_channel.save_member.exists.app_error", nil, "channel_id="+member.ChannelId+", user_id="+member.UserId+", "+err.Error())
 		} else {
 			result.Err = model.NewLocAppError("SqlChannelStore.SaveMember", "store.sql_channel.save_member.save.app_error", nil, "channel_id="+member.ChannelId+", user_id="+member.UserId+", "+err.Error())
@@ -839,6 +839,20 @@ func (s SqlChannelStore) UpdateLastViewedAt(channelId string, userId string) Sto
 			    ChannelMembers.MsgCount = Channels.TotalMsgCount,
 			    ChannelMembers.LastViewedAt = Channels.LastPostAt,
 			    ChannelMembers.LastUpdateAt = Channels.LastPostAt
+			WHERE
+			    Channels.Id = ChannelMembers.ChannelId
+			        AND UserId = :UserId
+			        AND ChannelId = :ChannelId`
+		} else if utils.Cfg.SqlSettings.DriverName == model.DATABASE_DRIVER_MSSQLSERVER {
+			query = `UPDATE
+				ChannelMembers
+			SET
+			    MentionCount = 0,
+			    MsgCount = Channels.TotalMsgCount,
+			    LastViewedAt = Channels.LastPostAt,
+			    LastUpdateAt = Channels.LastPostAt
+			FROM
+				Channels
 			WHERE
 			    Channels.Id = ChannelMembers.ChannelId
 			        AND UserId = :UserId

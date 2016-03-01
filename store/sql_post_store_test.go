@@ -647,11 +647,6 @@ func TestPostStoreGetPostsSince(t *testing.T) {
 func TestPostStoreSearch(t *testing.T) {
 	Setup()
 
-	// XXX TODO FIXME
-	if utils.Cfg.SqlSettings.DriverName == model.DATABASE_DRIVER_MSSQLSERVER {
-		return
-	}
-
 	teamId := model.NewId()
 	userId := model.NewId()
 
@@ -713,6 +708,10 @@ func TestPostStoreSearch(t *testing.T) {
 	o5.Hashtags = "#secret #howdy"
 	o5 = (<-store.Post().Save(o5)).Data.(*model.Post)
 
+	if utils.Cfg.SqlSettings.DriverName == model.DATABASE_DRIVER_MSSQLSERVER {
+		time.Sleep(12 * time.Second)
+	}
+
 	r1 := (<-store.Post().Search(teamId, userId, &model.SearchParams{Terms: "corey", IsHashtag: false})).Data.(*model.PostList)
 	if len(r1.Order) != 1 || r1.Order[0] != o1.Id {
 		t.Fatal("returned wrong search result")
@@ -728,9 +727,11 @@ func TestPostStoreSearch(t *testing.T) {
 		t.Fatal("returned wrong search result")
 	}
 
-	r5 := (<-store.Post().Search(teamId, userId, &model.SearchParams{Terms: "matter*", IsHashtag: false})).Data.(*model.PostList)
-	if len(r5.Order) != 1 || r5.Order[0] != o1.Id {
-		t.Fatal("returned wrong search result")
+	if utils.Cfg.SqlSettings.DriverName != model.DATABASE_DRIVER_MSSQLSERVER {
+		r5 := (<-store.Post().Search(teamId, userId, &model.SearchParams{Terms: "matter*", IsHashtag: false})).Data.(*model.PostList)
+		if len(r5.Order) != 1 || r5.Order[0] != o1.Id {
+			t.Fatal("returned wrong search result")
+		}
 	}
 
 	r6 := (<-store.Post().Search(teamId, userId, &model.SearchParams{Terms: "#hashtag", IsHashtag: true})).Data.(*model.PostList)
@@ -753,9 +754,11 @@ func TestPostStoreSearch(t *testing.T) {
 		t.Fatal("returned wrong search result")
 	}
 
-	r10 := (<-store.Post().Search(teamId, userId, &model.SearchParams{Terms: "matter* jer*", IsHashtag: false})).Data.(*model.PostList)
-	if len(r10.Order) != 2 {
-		t.Fatal("returned wrong search result")
+	if utils.Cfg.SqlSettings.DriverName != model.DATABASE_DRIVER_MSSQLSERVER {
+		r10 := (<-store.Post().Search(teamId, userId, &model.SearchParams{Terms: "matter* jer*", IsHashtag: false})).Data.(*model.PostList)
+		if len(r10.Order) != 2 {
+			t.Fatal("returned wrong search result")
+		}
 	}
 
 	r11 := (<-store.Post().Search(teamId, userId, &model.SearchParams{Terms: "message blargh", IsHashtag: false})).Data.(*model.PostList)

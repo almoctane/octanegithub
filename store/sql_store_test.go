@@ -89,11 +89,6 @@ func TestEncrypt(t *testing.T) {
 func TestAlertDbCmds(t *testing.T) {
 	Setup()
 
-	// XXX TODO FIXME
-	if utils.Cfg.SqlSettings.DriverName == model.DATABASE_DRIVER_MSSQLSERVER {
-		return
-	}
-
 	sqlStore := store.(*SqlStore)
 
 	if !sqlStore.DoesTableExist("Systems") {
@@ -104,7 +99,7 @@ func TestAlertDbCmds(t *testing.T) {
 		t.Fatal("Column should not exist")
 	}
 
-	if !sqlStore.CreateColumnIfNotExists("Systems", "Test", "VARCHAR(50)", "VARCHAR(50)", "") {
+	if !sqlStore.CreateColumnIfNotExists("Systems", "Test", "VARCHAR(50)", "VARCHAR(50)", "NVARCHAR(50)", "") {
 		t.Fatal("Failed to create column")
 	}
 
@@ -114,7 +109,7 @@ func TestAlertDbCmds(t *testing.T) {
 		t.Fatal("Failed to get max length found " + maxLen)
 	}
 
-	if !sqlStore.AlterColumnTypeIfExists("Systems", "Test", "VARCHAR(25)", "VARCHAR(25)") {
+	if !sqlStore.AlterColumnTypeIfExists("Systems", "Test", "VARCHAR(25)", "VARCHAR(25)", "NVARCHAR(25)") {
 		t.Fatal("failed to alter column size")
 	}
 
@@ -139,8 +134,8 @@ func TestAlertDbCmds(t *testing.T) {
 	sqlStore.CreateIndexIfNotExists("idx_systems_test1", "Systems", "Test1")
 	sqlStore.RemoveIndexIfExists("idx_systems_test1", "Systems")
 
-	sqlStore.CreateFullTextIndexIfNotExists("idx_systems_test1", "Systems", "Test1")
-	sqlStore.RemoveIndexIfExists("idx_systems_test1", "Systems")
+	sqlStore.CreateFullTextIndexIfNotExists("idx_systems_test1_full", "Systems", "Test1")
+	sqlStore.RemoveFullTextIndexIfExists("idx_systems_test1_full", "Systems")
 
 	if !sqlStore.RemoveColumnIfExists("Systems", "Test1") {
 		t.Fatal("Failed to remove columns")
