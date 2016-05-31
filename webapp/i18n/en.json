@@ -522,6 +522,8 @@
   "admin.password.requirementsDescription": "Character types required in a valid password.",
   "admin.password.symbol": "At least one symbol (e.g. \"~!@#$%^&*()\")",
   "admin.password.uppercase": "At least one uppercase letter",
+  "admin.oauth.providerDescription": "When true, Mattermost can act as an OAuth provider to authenticate users.",
+  "admin.oauth.providerTitle": "Enable OAuth Service Provider:",
   "admin.privacy.showEmailDescription": "When false, hides email address of users from other users in the user interface, including team owners and Team Administrators. Used when system is set up for managing teams where some users choose to keep their contact information private.",
   "admin.privacy.showEmailTitle": "Show Email Address: ",
   "admin.privacy.showFullNameDescription": "When false, hides full name of users from other users, including team owners and Team Administrators. Username is shown in place of full name.",
