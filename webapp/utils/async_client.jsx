@@ -480,6 +480,25 @@ export function getConfig(success, error) {
     );
 }
 
+export function getClientConfig() {
+    if (isCallInProgress('getClientConfig')) {
+        return;
+    }
+
+    callTracker.getClientConfig = utils.getTimestamp();
+    Client.getClientConfig(
+        (data) => {
+            callTracker.getConfig = 0;
+
+            global.window.mm_config = data;
+        },
+        (err) => {
+            callTracker.getClientConfig = 0;
+            dispatchError(err, 'getClientConfig');
+        }
+    );
+}
+
 export function getAllTeams() {
     if (isCallInProgress('getAllTeams')) {
         return;
