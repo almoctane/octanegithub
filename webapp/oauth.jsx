@@ -6,7 +6,6 @@ import React from 'react';
 import ReactDOM from 'react-dom';
 
 import Authorize from 'components/authorize.jsx';
-
 import Client from 'utils/web_client.jsx';
 import BrowserStore from 'stores/browser_store.jsx';
 import LocalizationStore from 'stores/localization_store.jsx';

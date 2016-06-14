@@ -9,6 +9,7 @@ import claimAccountRoute from 'routes/route_claim.jsx';
 import createTeamRoute from 'routes/route_create_team.jsx';
 import teamRoute from 'routes/route_team.jsx';
 import helpRoute from 'routes/route_help.jsx';
+import appcenterRoute from 'routes/route_app_center.jsx';
 
 import BrowserStore from 'stores/browser_store.jsx';
 import ErrorStore from 'stores/error_store.jsx';
@@ -154,7 +155,8 @@ export default {
                                 ]
                             )
                         },
-                        teamRoute
+                        teamRoute,
+                        appcenterRoute
                     ]
                 )
             },
