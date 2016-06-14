@@ -287,6 +287,31 @@ export default class NavbarDropdown extends React.Component {
             }
         }
 
+        const apps = [];
+        if (config.EnableSampleApp === 'true') {
+            apps.push(
+                <li
+                    key='appDivider'
+                    className='divider'
+                />
+            );
+            apps.push(
+                <li
+                    key='sampleApp'
+                >
+                    <Link
+                        to={`/${TeamStore.getCurrent().name}/app-center/sample`}
+                    >
+                        <FormattedMessage
+                            id='navbar_dropdown.goTo'
+                            defaultMessage='Go to '
+                        />
+                        {config.SampleAppAppDisplayName}
+                    </Link>
+                </li>
+            );
+        }
+
         let helpLink = null;
         if (config.HelpLink) {
             helpLink = (
@@ -399,6 +424,7 @@ export default class NavbarDropdown extends React.Component {
                         {manageLink}
                         {sysAdminLink}
                         {teams}
+                        {apps}
                         <li className='divider'></li>
                         {helpLink}
                         {reportLink}
