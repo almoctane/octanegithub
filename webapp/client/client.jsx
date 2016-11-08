@@ -156,6 +156,10 @@ export default class Client {
         // NO-OP for inherited classes to override
     }
 
+    handleSuccess(res) { // eslint-disable-line no-unused-vars
+        // NO-OP for inherited classes to override
+    }
+
     handleResponse(methodName, successCallback, errorCallback, err, res) {
         if (res && res.header) {
             this.serverVersion = res.header[HEADER_X_VERSION_ID];
@@ -206,6 +210,7 @@ export default class Client {
         }
 
         if (successCallback) {
+            this.handleSuccess(res);
             successCallback(res.body, res);
         }
     }

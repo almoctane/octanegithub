@@ -64,12 +64,13 @@ export function close() {
     WebSocketClient.close();
 }
 
-export function getStatuses() {
-    StatusActions.loadStatusesForChannelAndSidebar();
+export function reconnect() {
+    close();
+    initialize();
+    handleReconnect();
 }
 
 function handleFirstConnect() {
-    getStatuses();
     ErrorStore.clearLastError();
     ErrorStore.emitChange();
 }
@@ -80,7 +81,7 @@ function handleReconnect() {
         loadPosts(ChannelStore.getCurrentId());
     }
 
-    getStatuses();
+    StatusActions.loadStatusesForChannelAndSidebar();
     ErrorStore.clearLastError();
     ErrorStore.emitChange();
 }
